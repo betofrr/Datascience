@@ -1,0 +1,187 @@
+---
+title: "Proyecto Data Science"
+author: "José Alberto Félix Rodríguez"
+date: '2020-11-12'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+El Proyecto de Data Science consiste en:
+
+1)Planteamiento de preguntas del proyecto junto con un análisis exploratorio y una gráfica.
+
+2)Entrenamiento del modelo de clasificación de KNN.
+
+
+##### Entrenamiento del Modelo de Clasificación de KNN
+
+
+Cargamos los paquetes a utilizar.
+
+```{r setup, include=TRUE}
+require(class)
+require(gmodels)
+require(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+```
+
+Abrimos las bases de datos que utilizaremos y las guardamos en una variable:
+
+```{r}
+dbv <- "C:\\Users\\Beto Felix\\Desktop\\Beto\\SPPC\\Curso Análisis de Datos\\klustera\\v.csv"
+dbe <- "C:\\Users\\Beto Felix\\Desktop\\Beto\\SPPC\\Curso Análisis de Datos\\klustera\\e.csv"
+
+## Guardar base de datos en variable
+e <- read.csv(paste(dbe, sep="/"), stringsAsFactors = FALSE)
+v <- read.csv(paste(dbv, sep="/"), stringsAsFactors = FALSE)
+```
+
+Quitamos la primera fila de la base de datos "e"
+```{r}
+str(e)
+e <- e[-1]
+str(e)
+```
+
+Verificamos que no haya datos NA en la base de datos "e"
+```{r}
+sapply(e, function(x) sum(is.na(x)))
+```
+
+Cambiamos a factor la columna de visitor y convertimos su contenido en Visitante y No Visitante.
+También sacamos en porcentaje cuántos Visitantes y cuántos No Visitantes hay
+```{r}
+e$visitor <- factor(e$visitor, levels = c("true", "false"),
+                    labels = c("Visitante", "No Visitante"))
+
+round(prop.table(table(e$visitor)) * 100, digits = 1)
+```
+
+Exploramos los valores de los atributos que tienen un mínimo y un máximo muy separados entre si y normalizamos esos valores.
+```{r}
+summary(e[c("tiempodeses", "day_tz", "hour_tz")])
+
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+e_n <- as.data.frame(lapply(e[c(4,6,8)], normalize)) #list apply
+head(e_n)
+```
+
+Separamos la base de datos en un database de prueba y en otro de entrenamiento, guardando la clasificación que tuvieron en otra variable.
+```{r}
+nfilas <- floor(nrow(e_n) * .80)
+set.seed(123)
+index <- sample(7:nrow(e_n), nfilas) # 80%
+e_train <- e_n[1:80000, ] # Obtener solo las muestras
+e_test <- e_n[80001:90000, ] # Todo menos las muestras
+
+# Guardamos la clasificaciÃ³n de cada uno (B o M) de la primera columna
+e_train_labels <- e[1:80000, 7]
+e_test_labels <- e[80001:90000, 7]
+str(e_train_labels)
+```
+
+Se realiza la predicción con un número de veces que se analizara siendo "K" ese número y realizamos una tabla para verificar el resultado de nuestra predicción.
+```{r}
+e_test_pred <- knn(train = e_train, test = e_test, cl = e_train_labels, k = 30)
+
+## ----------- Evaluamos los resultados del modelo 
+# Creamos una tabla para compara predicciones vs real
+CrossTable(x = e_test_labels, y = e_test_pred, prop.r=FALSE, prop.chisq = FALSE)
+```
+
+Agregamos la predicción a la base "v" en una nueva columna llamada "Visitor"
+```{r}
+v$visitor <- e_test_pred
+summary(v$visitor)
+```
+
+
+##### ¿Cuál es el mes con mayor número de visitantes?
+
+Para sacar el mes con el mayor número de visitantes, primero se realizará un filtro sobre la columna "Visitor" para dejar solo los valores con "Visitantes". Luego se agrupara por mes y por último, se contará los registros que salieron en las agrupaciones.
+
+
+```{r}
+mes <- v %>%
+  filter(visitor=="Visitante") %>%
+  group_by(month_tz) %>%
+  count() %>%
+  mutate(total=n)
+```
+
+Se obtiene los siguientes datos:
+```{r}
+mes
+```
+
+Se realiza la gráfica de los datos anteriores
+
+```{r}
+gr <- ggplot(mes, aes(x=month_tz, y=total)) +
+  geom_col(fill="seagreen")+labs(title = "Visitantes por Mes", x="Mes", y="No. de Visitantes")
+gr
+```
+
+###### ¿Cuál es el día de la semana con mayor número de visitantes?
+
+Para sacar el día de la semana con el mayor número de visitantes, primero se realizará un filtro sobre la columna "Visitor" para dejar solo los valores con "Visitantes". Luego se agrupara por día y por último, se contará los registros que salieron en las agrupaciones.
+
+
+```{r}
+ dia <- v %>%
+  filter(visitor=="Visitante") %>%
+  group_by(day_of_week_tz) %>%
+  count() %>%
+  mutate(total=n)
+```
+
+Se obtiene los siguientes datos:
+```{r}
+dia
+```
+
+Se realiza la gráfica de los datos anteriores
+
+```{r}
+gr <- ggplot(dia, aes(x=day_of_week_tz, y=total)) +
+  geom_point(color="#0570F1")+ labs(title = "Visitantes por Día",x="Días de la semana",y="Visitantes")+
+  theme_light()
+gr
+```
+
+##### ¿Cuál es la franquicia que cuenta con el mayor número de visitantes?
+
+Para sacar la franquicia que obtuvo el mayor número de visitantes, primero se realizará un filtro sobre la columna "Visitor" para dejar solo los valores con "Visitantes". Luego se agrupara por franquicia y por último, se contará los registros que salieron en las agrupaciones.
+
+
+```{r}
+branch <- v %>%
+  filter(visitor=="Visitante") %>%
+  group_by(branch_office) %>%
+  count() %>%
+  mutate(total=n)
+```
+
+Se obtiene los siguientes datos:
+```{r}
+branch
+```
+
+
+Se realiza la gráfica de los datos anteriores
+
+```{r}
+gr <- ggplot(branch, aes(x=branch_office, y=total)) +
+  geom_col(fill="royalblue")+labs(title = "Visitantes por Franquicia", x="Franquicia", y="No. de Visitantes")
+gr
+```
+
+
+
+
